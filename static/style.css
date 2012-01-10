@@ -1,0 +1,41 @@
+.menu {
+    display: block;
+    margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
+    padding: .2em;
+    width: 100%;
+    background-color: navy;
+    color: white;
+}
+.menu li {
+    display: inline-block;
+    margin-left: 1em;
+}
+.menu a {
+    color: white;
+    font-weight: bold;
+}
+.menu a:visited, .menu a:active {
+    color: #ffc;
+}
+
+.message_success, .message_error, .message_warning {
+    margin: .5em;
+    padding: .7em;
+}
+.message_success {
+    border: 1px outset #0c0;
+    background-color: #6f6;
+}
+.message_error {
+    border: 1px outset #c00;
+    background-color: #f66;
+}
+.message_warning {
+    border: 1px outset #00c;
+    background-color: #66f;
+}
+thead tr td {
+    font-weight: bold;
+}

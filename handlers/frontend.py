@@ -1,20 +1,50 @@
 import urlparse
+import urllib
+import logging
 
 from bottle import Bottle, request, template, abort, redirect, template
-from cork import set_flash, SUCCESS
+from cork import get_flash, set_flash, SUCCESS, stripslashes
 
 import oauth2 as oauth
 
 import settings
 import models
+import weavrsclient
+from backend import queue_run_weavr
 
 
 app = Bottle()
 
 @app.get('/')
-def index():
+def index(flash=None):
     weavrs_instances = models.WeavrsInstance.all(keys_only=True)
+    flash = flash or get_flash()
     return template('frontend_index', **locals())
+
+
+@app.get('/run/')
+def run(flash=None):
+    weavrs_instances = models.WeavrsInstance.all(keys_only=True)
+    flash = flash or get_flash()
+    return template('frontend_run_index', **locals())
+
+
+@app.get('/run/instance/<name:path>')
+def run_instance(name, flash=None):
+    name = stripslashes(name)
+    weavrs_instance = models.WeavrsInstance.get_by_key_name_or_abort(name)
+    weavrs = weavrs_instance.get_weavrs()
+    flash = flash or get_flash()
+    return template('frontend_run_instance', **locals())
+
+
+@app.get('/run/weavr/<name:path>')
+def run_weavr(name, flash=None):
+    name = stripslashes(name)
+    weavr = models.Weavr.get_by_key_name_or_abort(name)
+    queue_run_weavr(name)
+    set_flash(SUCCESS, u"Run queued for weavr %s" % name)
+    redirect('/')
 
 
 @app.get('/oauth/start/weavr/<key>/')
@@ -22,8 +52,10 @@ def oauth_start(key):
     weavrs_instance = models.WeavrsInstance.get_by_key_name_or_abort(key)
     consumer = oauth.Consumer(weavrs_instance.consumer_key, weavrs_instance.consumer_secret)
     client = oauth.Client(consumer)
+    client.force_exception_to_status_code = True
     next = request.query.next or '/'
     
+    logging.debug(u"Connecting to %s" % weavrs_instance.request_token_url)
     resp, content = client.request(weavrs_instance.request_token_url, 'GET')
     status = resp.status
     if status == 401:
@@ -46,9 +78,10 @@ def oauth_start(key):
     
     current_url = request.urlparts
     oauth_callback_url = "%s://%s/oauth/complete/weavr/?weavrs_instance=%s&next=%s" % (
-            current_url.scheme, current_url.netlock, weavrs_instance.key().name(), next)
+            current_url.scheme, current_url.netloc, weavrs_instance.key().name(), next)
+    oauth_callback_url = urllib.quote_plus(oauth_callback_url)
     authorize_url = "%s?oauth_token=%s&oauth_callback=%s" % (weavrs_instance.authorize_url,
-            oauth_token, oauth_callback_url)
+            request_key, oauth_callback_url)
     redirect(authorize_url)
 
 
@@ -59,9 +92,9 @@ def oauth_complete():
     weavrs_instance_key = request.query.weavrs_instance
     next = request.query.next or '/'
     
-    request_token = models.RequestToken.get_by_key_name_or_abort(key_name=request_oauth_token)
+    request_token = models.RequestToken.get_by_key_name_or_abort(key_name=request_key)
     try:
-        weavrs_instance = modelw.WeavrsInstance.get_by_key_name_or_abort(key_name=weavrs_instance_key)
+        weavrs_instance = models.WeavrsInstance.get_by_key_name_or_abort(key_name=weavrs_instance_key)
         consumer = oauth.Consumer(weavrs_instance.consumer_key, weavrs_instance.consumer_secret)
         token = oauth.Token(request_key, request_token.secret)
         token.set_verifier(oauth_verifier)
@@ -99,8 +132,8 @@ def oauth_complete():
             abort(503, u"Could not get weavr name from weavrs instance at %s, got content %s" % (
                     weavrs_instance.link, content))
         
-        key_name = u"%s/%s" % (weavrs_instance.key.name(), weavr_name)
-        weavr = Weavr(key_name=key_name, oauth_key=access_key, oauth_secret=access_secret)
+        key_name = u"%s/%s" % (weavrs_instance.key().name(), weavr_name)
+        weavr = models.Weavr(key_name=key_name, oauth_key=access_key, oauth_secret=access_secret)
         weavr.save()
         set_flash(SUCCESS, u"OAuth authorization complete for weavr %s" % weavr_name)
         redirect(next)

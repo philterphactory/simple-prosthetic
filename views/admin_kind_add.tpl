@@ -1,4 +1,4 @@
-%rebase admin_base title='Add New %s' % kindname, flash=flash
+%rebase admin_base title='%s %s %s' % (edit and 'Edit' or 'Add New', kindname, edit and name or ''), flash=flash
 
 <style>
 .form_wrapper {
@@ -31,6 +31,9 @@ label {
     %input_name = 'input__p__key__%s' % p
     %input_value = p in values and values.get(p) or ''
             <div class="form_row">
+%if edit:
+                <span class="required">{{p}}:</span> {{input_value}}
+%else:
                 <label
                         id="{{label_name}}"
                         for="{{input_name}}"
@@ -42,6 +45,7 @@ label {
                         id="{{input_name}}"
                         name="{{input_name}}"
                         value="{{input_value}}">
+%end
             </div>
 %end
         </div>

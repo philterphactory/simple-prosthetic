@@ -1,27 +1,7 @@
 <html>
     <head>
         <title>{{title}}</title>
-        <style>
-.message_success, .message_error, .message_warning {
-    margin: .5em;
-    padding: .7em;
-}
-.message_success {
-    border: 1px outset #0c0;
-    background-color: #6f6;
-}
-.message_error {
-    border: 1px outset #c00;
-    background-color: #f66;
-}
-.message_warning {
-    border: 1px outset #00c;
-    background-color: #66f;
-}
-thead tr td {
-    font-weight: bold;
-}
-        </style>
+        <link rel="stylesheet" type="text/css" href="/static/style.css" type="text/css" />
     </head>
     <body>
         <ul class="menu">

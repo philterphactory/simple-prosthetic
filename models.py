@@ -8,14 +8,14 @@ class Model(db.Model):
     def get_by_key_name_or_abort(cls, key_name, status=404):
         result = cls.get_by_key_name(key_name)
         if not result:
-            abort(abort_code, u"%s %s not found" % (cls.__name__, key_name))
+            abort(status, u"%s %s not found" % (cls.__name__, key_name))
         return result
     
     @classmethod
     def abort_if_exists(cls, key_name, status=409):
         result = cls.get_by_key_name(key_name)
         if result:
-            abort(abort_code, u"%s %s already exists" % (cls.__name__, key_name))
+            abort(status, u"%s %s already exists" % (cls.__name__, key_name))
     
     class Meta:
         key_parts = ['key_name']
@@ -58,8 +58,25 @@ class WeavrsInstance(Model):
         base_url = self.link
         if not base_url.endswith('/'):
             base_url += '/'
-        api_url = u"%s%s/%s/" % (base_url, version, action)
+        api_url = u"%sapi/%s/%s/" % (base_url, version, action)
         return api_url
+    
+    def get_weavrs(self):
+        # "localhost /"
+        # "localhost / foo"
+        # "localhost / bar"
+        # "localhost/"        <--- bigger than this
+        # "localhost/foo"
+        # "localhost/bar"
+        # "localhost0"        <--- smaller than this
+        # "localhost0/bar"
+        # "someothersite/"    <--- smaller than this
+        return Weavr.all(keys_only=True)\
+            .filter('enabled = ', True)\
+            .filter('__key__ >', db.Key.from_path('Weavr', u"%s/" % self.key().name()))\
+            .filter('__key__ < ', db.Key.from_path('Weavr', u"%s0" % self.key().name()))\
+            .order('__key__')
+        
 
 
 class Weavr(Model):
@@ -76,17 +93,19 @@ class Weavr(Model):
     class Meta:
         key_parts = ['weavrs_instance_name', 'weavr_name']
     
-    def _get_name(self):
-        self.key().name().split
-    
-    def get_weavr_or_abort(weavr_instance, key_or_name):
+    @classmethod
+    def get_weavr_or_abort(cls, weavr_instance, key_or_name):
         if key_or_name.find('/') == -1:
             key_name = u"%s/%s" % (weavrs_instance.key().name(), key_or_name)
         elif isinstance(key_or_name, db.Key):
             key_name = key_or_name.name()
         else:
             key_name = key_or_name
-        return self.get_by_key_name_or_abort(key_name=key_name)
+        return self.get_by_key_name_or_abort(key_name)
+    
+    def get_instance(self):
+        instance_name = self.key().name().split('/', 1)[0]
+        return WeavrsInstance.get_by_key_name(instance_name)
 
 
 class RequestToken(Model):

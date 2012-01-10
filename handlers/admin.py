@@ -1,12 +1,13 @@
 import types
 import logging
+import datetime
 
 from google.appengine.ext import db
 from google.appengine.ext import blobstore
 from google.appengine.ext.db.metadata import Kind
 
 from bottle import Bottle, run, template, abort, request, response, redirect
-from cork import get_flash, set_flash, SUCCESS, ERROR
+from cork import get_flash, set_flash, SUCCESS, ERROR, stripslashes
 
 import settings
 import models
@@ -55,6 +56,7 @@ def kind_add(kindname, values=None, flash=None):
         values = {}
     kind = get_kind(kindname)
     flash = flash or get_flash()
+    edit = False
     return template('admin_kind_add', **locals())
 
 
@@ -84,7 +86,7 @@ def getproperty(kind, p, key=False):
         elif isinstance(property_class, db.FloatProperty):
             v = float(v)
         elif isinstance(property_class, db.DateTimeProperty):
-            v = datetime.datetime.strptime(v, '&Y-%m-%dT%H:%M:%S')
+            v = datetime.datetime.strptime(v, '%Y-%m-%d %H:%M:%S.%f')
         elif isinstance(property_class, db.LinkProperty):
             v = db.Link(v)
         elif isinstance(property_class, db.TextProperty):
@@ -124,7 +126,7 @@ def kind_add_do(kindname):
     kind = get_kind(kindname)
     
     key_parts = [getproperty(kind, p, True) for p in kind.Meta.key_parts]
-    key = "/".join(key_parts)
+    key = u"/".join(key_parts)
     
     kind.abort_if_exists(key)
     try:
@@ -133,16 +135,59 @@ def kind_add_do(kindname):
         return kind_add(kindname, values=request.forms, flash=(ERROR, e.message))
 
 
-def do_put(kindname, kind, key):
+@app.get('/admin/<kindname>/edit/<name:path>')
+def kind_edit(kindname, name, values=None, flash=None):
+    if values is None:
+        values = {}
+    name = stripslashes(name)
+    kind = get_kind(kindname)
+    obj = kind.get_by_key_name_or_abort(name)
+    key_name = obj.key().name()
+    assert key_name is not None
+    num_parts = len(kind.Meta.key_parts)
+    key_parts = key_name.split(u"/")
+    i = 0
+    for k in kind.Meta.key_parts:
+        v = key_parts[i]
+        values[k] = v
+        i += 1
+    for p in kind.properties():
+        if not p in values:
+            values[p] = str(getattr(obj, p))
+    del obj
+    flash = flash or get_flash()
+    edit = True
+    return template('admin_kind_add', **locals())
+
+
+@app.post('/admin/<kindname>/edit/<name>/')
+def kind_edit_do(kindname, name):
+    kind = get_kind(kindname)
+    obj = kind.get_by_key_name_or_abort(name)
+    key = str(obj.key())
+
+    try:
+        do_put(kindname, kind, key, instance=obj)
+    except db.BadValueError, e:
+        return kind_edit(kindname, values=request.forms, flash=(ERROR, e.message))
+
+
+def do_put(kindname, kind, key, instance=None):
     properties = dict(
         [(k,v) for k,v in
             [(p,getproperty(kind, p)) for p in kind.properties()]
         if v is not None]
     )
-    properties['key_name'] = key
-    instance = kind(**properties)
+    if instance is None:
+        properties['key_name'] = key
+        key_name = key
+        instance = kind(**properties)
+    else:
+        key_name = db.Key(key).name()
+        for k, v in properties.iteritems():
+            setattr(instance, k, v)
     instance.put()
-    set_flash(SUCCESS, '%s was saved' % key)
+    set_flash(SUCCESS, '%s was saved' % key_name)
     redirect('/admin/%s/' % kindname)
 
 

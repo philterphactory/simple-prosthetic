@@ -26,7 +26,7 @@ class WeavrsClient(object):
         self.weavr = weavr
         self.consumer = oauth.Consumer(weavrs_instance.consumer_key, weavrs_instance.consumer_secret)
         self.access_token = oauth.Token(self.weavr.oauth_key, self.weavr.oauth_secret)
-        self.client = oauth.Client(consumer, access_token)
+        self.client = oauth.Client(self.consumer, self.access_token)
     
     def get_json(self, action):
         api_url = self.weavrs_instance.get_api_url(action)
@@ -38,15 +38,15 @@ class WeavrsClient(object):
             self.weavr.save()
             abort(400, u"OAuth credentials for weavr %s have been revoked" % weavr.name)
         elif status >= 500:
-            abort(503, u"Could not get access token from weavrs instance at %s, status %d" % (
-                    weavrs_instance.access_token_url, status))
+            abort(503, u"Could not access weavrs instance at %s, status %d" % (
+                    api_url, status))
         elif status >= 400:
-            abort(500, u"Could not get access token from weavrs instance at %s, status %d" % (
-                    weavrs_instance.access_token_url, status))
+            abort(500, u"Could not access weavrs instance at %s, status %d" % (
+                    api_url, status))
         elif status >= 300:
-            abort(500, u"Could not get access token from weavrs instance at %s, status %d" % (
-                    weavrs_instance.access_token_url, status))
-        return simplejson.loads(content)
+            abort(500, u"Could not access weavrs instance at %s, status %d" % (
+                    api_url, status))
+        return json.loads(content)
     
     def get_weavr_configuration(self):
         return self.get_json('weavr/configuration')

@@ -18,3 +18,12 @@ def set_flash(level, message):
     response.set_cookie('flash', (level, message), secret='sekrit', path='/')
 
 
+def stripslashes(v):
+    if not v:
+        return v
+    assert isinstance(v, basestring)
+    while v.startswith('/'):
+        v = v[1:]
+    while v.endswith('/'):
+        v = v[:-1]
+    return v
